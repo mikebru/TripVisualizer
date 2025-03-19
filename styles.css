@@ -10,6 +10,7 @@ body {
     flex-direction: column;
     min-height: 100vh;
     background-color: #f5f7fa;
+    overflow-x: hidden; /* Prevent horizontal scrolling on mobile */
 }
 
 header {
@@ -22,6 +23,7 @@ header {
 
 header h1 {
     margin-bottom: 1rem;
+    font-size: 1.8rem; /* Slightly smaller for better mobile fit */
 }
 
 .sheet-input {
@@ -30,6 +32,7 @@ header h1 {
     gap: 0.5rem;
     max-width: 600px;
     margin: 0 auto;
+    width: 100%;
 }
 
 .sheet-input input {
@@ -38,6 +41,7 @@ header h1 {
     border: none;
     border-radius: 4px;
     font-size: 1rem;
+    min-width: 0; /* Allow input to shrink on small screens */
 }
 
 .sheet-input button {
@@ -49,6 +53,7 @@ header h1 {
     cursor: pointer;
     font-size: 1rem;
     transition: background-color 0.3s;
+    white-space: nowrap; /* Prevent button text from wrapping */
 }
 
 .sheet-input button:hover {
@@ -58,24 +63,35 @@ header h1 {
 nav {
     background-color: #2980b9;
     padding: 0.5rem;
+    width: 100%;
 }
 
 .view-selector {
     display: flex;
     justify-content: center;
     list-style: none;
-    gap: 1rem;
+    gap: 0.5rem; /* Smaller gap on mobile */
+    flex-wrap: wrap; /* Allow wrapping on very small screens */
+    padding: 0 0.5rem;
+}
+
+.view-selector li {
+    flex: 1; /* Make buttons take equal space */
+    min-width: 80px; /* Minimum width for buttons */
+    max-width: 150px; /* Maximum width for buttons */
 }
 
 .view-selector button {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem;
     background-color: transparent;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.9rem; /* Slightly smaller font for mobile */
     transition: background-color 0.3s;
+    width: 100%; /* Make button fill the li container */
+    text-align: center;
 }
 
 .view-selector button:hover {
@@ -89,7 +105,7 @@ nav {
 
 main {
     flex: 1;
-    padding: 1rem;
+    padding: 0.5rem; /* Smaller padding on mobile */
     overflow: auto;
 }
 
@@ -105,6 +121,7 @@ main {
 /* Table View Styles */
 #table-view {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 #data-table {
@@ -112,10 +129,11 @@ main {
     border-collapse: collapse;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem; /* Slightly smaller font for mobile */
 }
 
 #data-table th, #data-table td {
-    padding: 0.75rem;
+    padding: 0.5rem; /* Smaller padding on mobile */
     text-align: left;
     border-bottom: 1px solid #e0e0e0;
 }
@@ -123,6 +141,9 @@ main {
 #data-table th {
     background-color: #f0f0f0;
     font-weight: bold;
+    position: sticky; /* Keep headers visible when scrolling */
+    top: 0;
+    z-index: 10;
 }
 
 #data-table tr:hover {
@@ -131,47 +152,55 @@ main {
 
 /* Calendar View Styles */
 #calendar-view {
-    height: 600px;
+    height: calc(100vh - 130px); /* Adjust height based on viewport */
+    min-height: 400px;
 }
 
 #calendar {
     height: 100%;
     background-color: white;
-    padding: 1rem;
+    padding: 0.5rem; /* Smaller padding on mobile */
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem; /* Slightly smaller font for mobile */
 }
 
 /* Map View Styles */
 #map-view {
-    height: 600px;
+    height: calc(100vh - 130px); /* Adjust height based on viewport */
+    min-height: 400px;
 }
 
 #map {
     height: 100%;
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    z-index: 1; /* Ensure proper stacking context */
 }
 
 /* Map Marker Popup Styles */
 .marker-popup {
     padding: 5px;
+    max-width: 250px; /* Limit width on mobile */
 }
 
 .marker-popup h3 {
     margin: 0 0 8px 0;
     color: #3498db;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .marker-popup p {
     margin: 5px 0;
-    font-size: 14px;
+    font-size: 13px;
+    word-break: break-word; /* Prevent text overflow */
 }
 
 .leaflet-popup-content {
-    margin: 10px 12px;
+    margin: 8px 10px;
     line-height: 1.4;
+    max-height: 200px; /* Limit height on mobile */
+    overflow-y: auto; /* Allow scrolling for long content */
 }
 
 .leaflet-tooltip {
@@ -179,9 +208,12 @@ main {
     color: white;
     border: none;
     border-radius: 4px;
-    padding: 5px 10px;
+    padding: 5px 8px;
     font-weight: bold;
+    font-size: 12px; /* Smaller font for mobile */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    max-width: 150px; /* Limit width on mobile */
+    white-space: normal; /* Allow text wrapping */
 }
 
 .leaflet-tooltip-top:before {
@@ -198,10 +230,10 @@ main {
 
 .loading::after {
     content: "";
-    width: 40px;
-    height: 40px;
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #3498db;
+    width: 30px; /* Smaller for mobile */
+    height: 30px; /* Smaller for mobile */
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -215,10 +247,11 @@ main {
 .error-message {
     color: #e74c3c;
     text-align: center;
-    padding: 1rem;
+    padding: 0.75rem;
     background-color: #fadbd8;
     border-radius: 4px;
-    margin: 1rem 0;
+    margin: 0.5rem 0;
+    font-size: 0.9rem; /* Smaller font for mobile */
 }
 
 /* Detail popup */
@@ -239,24 +272,27 @@ main {
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    width: 90%;
+    width: 95%; /* Wider on mobile */
     max-width: 600px;
-    max-height: 80vh;
+    max-height: 90vh; /* Taller on mobile */
     overflow-y: auto;
-    padding: 1.5rem;
+    padding: 1rem; /* Smaller padding on mobile */
     position: relative;
+    margin: 0 10px; /* Add some margin */
 }
 
 .detail-popup-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
     background: none;
     border: none;
     font-size: 1.5rem;
     cursor: pointer;
     color: #95a5a6;
     transition: color 0.3s;
+    padding: 5px; /* Larger touch target */
+    z-index: 2;
 }
 
 .detail-popup-close:hover {
@@ -264,9 +300,10 @@ main {
 }
 
 .detail-popup h2 {
-    margin: 0 0 1rem 0;
+    margin: 0 0 0.75rem 0;
     color: #3498db;
     padding-right: 30px; /* Space for close button */
+    font-size: 1.3rem; /* Smaller on mobile */
 }
 
 .detail-popup-content {
@@ -278,8 +315,85 @@ main {
 .detail-field {
     padding: 0.5rem;
     border-bottom: 1px solid #f0f0f0;
+    word-break: break-word; /* Prevent text overflow */
 }
 
 .detail-field:last-child {
     border-bottom: none;
+}
+
+/* Media Queries for Responsive Design */
+@media (max-width: 768px) {
+    /* Tablet and mobile adjustments */
+    header h1 {
+        font-size: 1.5rem;
+    }
+    
+    .sheet-input {
+        flex-direction: column;
+    }
+    
+    .sheet-input button {
+        width: 100%;
+    }
+    
+    .view-selector {
+        justify-content: space-between;
+    }
+    
+    .view-selector li {
+        flex: 1;
+    }
+    
+    .view-selector button {
+        padding: 0.4rem;
+        font-size: 0.85rem;
+    }
+    
+    #data-table th, #data-table td {
+        padding: 0.4rem;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Small mobile adjustments */
+    header {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    header h1 {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    main {
+        padding: 0.25rem;
+    }
+    
+    .view-selector button {
+        padding: 0.35rem;
+        font-size: 0.8rem;
+    }
+    
+    #data-table th, #data-table td {
+        padding: 0.35rem;
+        font-size: 0.8rem;
+    }
+    
+    .marker-popup h3 {
+        font-size: 14px;
+    }
+    
+    .marker-popup p {
+        font-size: 12px;
+    }
+    
+    .detail-popup {
+        padding: 0.75rem;
+    }
+    
+    .detail-popup h2 {
+        font-size: 1.2rem;
+    }
 }

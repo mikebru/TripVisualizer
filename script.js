@@ -376,13 +376,27 @@ function initMapView() {
 
 // Create a marker with popup and tooltip
 function createMarker(lat, lng, title, location, info, rowData) {
-    // Create popup content with all data from the row
+    // Create popup content with selected important fields for mobile-friendly display
     let popupContent = `<div class="marker-popup"><h3>${title}</h3>`;
     
-    // Add all fields from the row data
+    // For mobile-friendly display, show only the most important fields in the popup
     if (rowData) {
+        // Determine which fields to show in the popup
+        const importantFields = ['Date', 'Location', 'Day Type'];
+        
+        // Add important fields first
+        importantFields.forEach(field => {
+            if (rowData[field] && rowData[field].trim() !== '') {
+                popupContent += `<p><strong>${field}:</strong> ${rowData[field]}</p>`;
+            }
+        });
+        
+        // Add a few more fields that might be important but aren't in the predefined list
         Object.entries(rowData).forEach(([key, value]) => {
-            if (value && value.trim() !== '') {
+            if (!importantFields.includes(key) && 
+                value && value.trim() !== '' && 
+                !key.toLowerCase().includes('notes') && // Skip notes fields which can be long
+                popupContent.split('<p>').length < 6) { // Limit to 5 fields total for mobile
                 popupContent += `<p><strong>${key}:</strong> ${value}</p>`;
             }
         });
@@ -396,14 +410,16 @@ function createMarker(lat, lng, title, location, info, rowData) {
     
     const marker = L.marker([lat, lng])
         .addTo(map)
-        .bindPopup(popupContent)
+        .bindPopup(popupContent, {
+            maxWidth: 300, // Limit popup width for mobile
+            autoPan: true, // Ensure popup is visible when opened
+            closeButton: true // Always show close button for mobile
+        })
         .bindTooltip(title, {
             permanent: false,
             direction: 'top',
             opacity: 0.9
         });
-    
-    // No longer show the detailed popup overlay when clicking on a marker
     
     return marker;
 }
@@ -488,24 +504,33 @@ async function geocodeLocation(locationStr, title, info, rowData) {
     }
 }
 
-// Fit map to show all markers with improved zoom
+// Fit map to show all markers with improved zoom for mobile
 function fitMapToMarkers(markers) {
     if (markers.length > 0) {
         const group = new L.featureGroup(markers);
         
-        // Use a smaller padding value (0.05 instead of 0.1) for tighter zoom
-        map.fitBounds(group.getBounds().pad(0.05));
+        // Check if we're on a mobile device (rough estimate based on screen width)
+        const isMobile = window.innerWidth < 768;
+        
+        // Use appropriate padding based on device
+        const padding = isMobile ? 0.02 : 0.05;
+        
+        // Fit bounds with appropriate padding
+        map.fitBounds(group.getBounds().pad(padding));
         
         // If there's only one marker, set a higher zoom level
         if (markers.length === 1) {
-            // Get the current zoom and increase it by 2 levels (closer)
+            // Get the current zoom and increase it
+            // Use a higher zoom level on mobile for better visibility
             const currentZoom = map.getZoom();
-            map.setZoom(Math.min(currentZoom + 2, 15));
+            const zoomIncrease = isMobile ? 3 : 2;
+            const maxZoom = isMobile ? 16 : 15;
+            map.setZoom(Math.min(currentZoom + zoomIncrease, maxZoom));
         }
     }
 }
 
-// Switch between views
+// Switch between views with improved mobile handling
 function switchView(viewId) {
     // Hide all views
     document.querySelectorAll('.view').forEach(view => {
@@ -530,19 +555,24 @@ function switchView(viewId) {
             buttonId = 'calendar-view-btn';
             // Refresh calendar if it exists
             if (calendar) {
-                calendar.updateSize();
+                // Use a small timeout to ensure the view is visible first
+                setTimeout(() => {
+                    calendar.updateSize();
+                }, 50);
             }
             break;
         case 'map-view':
             buttonId = 'map-view-btn';
             // Refresh map if it exists
             if (map) {
-                map.invalidateSize();
-                
-                // If we have markers, make sure they're visible
-                // This ensures the map is properly zoomed when switching to map view
-                if (map._loaded) {
-                    setTimeout(() => {
+                // Use a small timeout to ensure the view is visible first
+                setTimeout(() => {
+                    // This is crucial for mobile - invalidateSize forces the map to recalculate dimensions
+                    map.invalidateSize(true);
+                    
+                    // If we have markers, make sure they're visible
+                    // This ensures the map is properly zoomed when switching to map view
+                    if (map._loaded) {
                         // Find all markers on the map
                         const markers = [];
                         map.eachLayer(layer => {
@@ -553,11 +583,15 @@ function switchView(viewId) {
                         
                         // Fit bounds if we have markers
                         if (markers.length > 0) {
+                            // Check if we're on a mobile device
+                            const isMobile = window.innerWidth < 768;
+                            const padding = isMobile ? 0.02 : 0.05;
+                            
                             const group = new L.featureGroup(markers);
-                            map.fitBounds(group.getBounds().pad(0.05));
+                            map.fitBounds(group.getBounds().pad(padding));
                         }
-                    }, 100); // Small delay to ensure the view is fully rendered
-                }
+                    }
+                }, 100); // Small delay to ensure the view is fully rendered
             }
             break;
     }
@@ -565,6 +599,9 @@ function switchView(viewId) {
     if (buttonId) {
         document.getElementById(buttonId).classList.add('active');
     }
+    
+    // Scroll to top when switching views (helpful on mobile)
+    window.scrollTo(0, 0);
 }
 
 // Show/hide loading indicator
