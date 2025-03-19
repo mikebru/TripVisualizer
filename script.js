@@ -716,6 +716,14 @@ function updateTravelPath() {
     // Remove existing path layer if it exists
     if (pathLayer) {
         console.log("Removing existing path layer");
+        
+        // Remove zoom event listeners from arrow markers to prevent memory leaks
+        pathLayer.eachLayer(layer => {
+            if (layer.zoomHandler) {
+                map.off('zoomend', layer.zoomHandler);
+            }
+        });
+        
         map.removeLayer(pathLayer);
         pathLayer = null;
     }
@@ -883,24 +891,66 @@ function createArrowHead(from, to) {
     const midX = (from[1] + to[1]) / 2;
     const midY = (from[0] + to[0]) / 2;
     
-    // Calculate the angle of the line
+    // Calculate the angle of the line in degrees
+    // Note: Leaflet uses [lat, lng] format, so we need to swap the coordinates for angle calculation
     const angle = Math.atan2(to[0] - from[0], to[1] - from[1]) * 180 / Math.PI;
     
     // Create a custom divIcon for the arrow
+    const createArrowSvg = (size) => {
+        // Calculate the arrow points based on size
+        const halfSize = size / 2;
+        
+        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow: visible;">
+                <polygon points="0,0 ${size},${halfSize} 0,${size}" 
+                         transform="rotate(${angle + 90} ${halfSize} ${halfSize})" 
+                         style="fill: #3498db; fill-opacity: 0.9; stroke: #2980b9; stroke-width: 1.5;"/>
+               </svg>`;
+    };
+    
+    // Initial size based on current zoom
+    const initialZoom = map.getZoom();
+    const initialSize = Math.max(16, Math.min(32, initialZoom * 2));
+    
+    // Create the initial icon
     const arrowIcon = L.divIcon({
-        html: `<svg width="16" height="16" viewBox="0 0 16 16">
-                <polygon points="0,0 16,8 0,16" transform="rotate(${angle + 90} 8 8)" style="fill: #3498db; fill-opacity: 0.8;"/>
-               </svg>`,
-        className: '',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
+        html: createArrowSvg(initialSize),
+        className: 'path-arrow',
+        iconSize: [initialSize, initialSize],
+        iconAnchor: [initialSize/2, initialSize/2]
     });
     
     // Create a marker with the arrow icon at the midpoint
-    return L.marker([midY, midX], {
+    const arrowMarker = L.marker([midY, midX], {
         icon: arrowIcon,
-        interactive: false // Make it non-interactive so it doesn't interfere with clicks
+        interactive: false, // Make it non-interactive so it doesn't interfere with clicks
+        zIndexOffset: 1000 // Ensure arrows are displayed above the path lines
     });
+    
+    // Store the angle for later use
+    arrowMarker.options.angle = angle;
+    
+    // Add event listener to update all arrows on zoom
+    const zoomHandler = function() {
+        const zoom = map.getZoom();
+        // Scale arrow size based on zoom level
+        const size = Math.max(16, Math.min(32, zoom * 2));
+        
+        // Update the icon with new size
+        const newIcon = L.divIcon({
+            html: createArrowSvg(size),
+            className: 'path-arrow',
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
+        });
+        
+        arrowMarker.setIcon(newIcon);
+    };
+    
+    // Store the handler reference so we can remove it later if needed
+    arrowMarker.zoomHandler = zoomHandler;
+    map.on('zoomend', zoomHandler);
+    
+    return arrowMarker;
 }
 
 // Show detailed popup with all information from a row
