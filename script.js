@@ -3,6 +3,8 @@ let sheetData = [];
 let headers = [];
 let calendar;
 let map;
+let pathLayer = null;
+let showPath = false;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,6 +15,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize load button
     document.getElementById('load-sheet').addEventListener('click', loadSheetData);
+
+    // Initialize path toggle
+    const pathToggle = document.getElementById('show-path-toggle');
+    if (pathToggle) {
+        pathToggle.addEventListener('change', function() {
+            showPath = this.checked;
+            updateTravelPath();
+        });
+    }
 
     // Pre-fill the example sheet URL
     document.getElementById('sheet-url').value = 'https://docs.google.com/spreadsheets/d/1o1mMCHTnh4zUg4S1tzjUFGMnyZji3nU6sa2hAtawNtk/edit?usp=sharing';
@@ -298,6 +309,11 @@ function initMapView() {
         header.toLowerCase().includes('description') || 
         header.toLowerCase().includes('details')) || '';
     
+    // Find date column for path ordering
+    const dateColumn = headers.find(header => 
+        header.toLowerCase() === 'date' || 
+        header.toLowerCase().includes('date')) || '';
+    
     // Initialize map if not already created
     if (!map) {
         // Start with a more zoomed-in view (zoom level 4 instead of 2)
@@ -310,12 +326,18 @@ function initMapView() {
             maxZoom: 19
         }).addTo(map);
     } else {
-        // Clear existing markers
+        // Clear existing markers and path layer, but preserve the base tile layer
         map.eachLayer(layer => {
-            if (layer instanceof L.Marker) {
+            // Only remove marker and path layers, not the base tile layer
+            if (!(layer instanceof L.TileLayer)) {
                 map.removeLayer(layer);
             }
         });
+        
+        console.log("Layers after clearing:", map._layers);
+        
+        // Reset path layer
+        pathLayer = null;
         
         // Reset view to ensure proper rendering
         map.invalidateSize();
@@ -363,14 +385,41 @@ function initMapView() {
         }
     });
     
-    // Wait for all geocoding to complete, then fit bounds
+    // Wait for all geocoding to complete, then fit bounds and draw path if needed
     if (geocodingPromises.length > 0) {
         Promise.all(geocodingPromises).then(() => {
+            console.log("All geocoding completed, markers:", markers.length);
+            
+            // Store marker coordinates in the original data for easier path creation
+            visibleData.forEach((row, index) => {
+                if (row[locationColumn]) {
+                    // Find the marker that corresponds to this location
+                    for (const marker of markers) {
+                        const popupContent = marker._popup ? marker._popup.getContent() : '';
+                        if (popupContent && popupContent.includes(row[locationColumn])) {
+                            const latlng = marker.getLatLng();
+                            // Store coordinates directly in the row data
+                            row._geocodedLat = latlng.lat;
+                            row._geocodedLng = latlng.lng;
+                            break;
+                        }
+                    }
+                }
+            });
+            
             fitMapToMarkers(markers);
+            // Draw travel path if toggle is checked
+            if (showPath) {
+                updateTravelPath();
+            }
         });
     } else if (markers.length > 0) {
-        // If we have markers from lat/lng, fit the map immediately
+        // If we have markers from lat/lng, fit the map immediately and draw path if needed
         fitMapToMarkers(markers);
+        // Draw travel path if toggle is checked
+        if (showPath) {
+            updateTravelPath();
+        }
     }
 }
 
@@ -393,8 +442,10 @@ function createMarker(lat, lng, title, location, info, rowData) {
         
         // Add a few more fields that might be important but aren't in the predefined list
         Object.entries(rowData).forEach(([key, value]) => {
+            // Skip internal properties (starting with underscore) and ensure value is a string
             if (!importantFields.includes(key) && 
-                value && value.trim() !== '' && 
+                !key.startsWith('_') && // Skip internal properties like _geocodedLat
+                value && typeof value === 'string' && value.trim() !== '' && 
                 !key.toLowerCase().includes('notes') && // Skip notes fields which can be long
                 popupContent.split('<p>').length < 6) { // Limit to 5 fields total for mobile
                 popupContent += `<p><strong>${key}:</strong> ${value}</p>`;
@@ -466,6 +517,12 @@ async function geocodeLocation(locationStr, title, info, rowData) {
             const lat = parseFloat(result.lat);
             const lng = parseFloat(result.lon);
             
+            // Store coordinates in the row data for easier path creation
+            if (rowData) {
+                rowData._geocodedLat = lat;
+                rowData._geocodedLng = lng;
+            }
+            
             // Extract a cleaner display name
             let displayName = locationStr;
             if (result.display_name) {
@@ -490,6 +547,13 @@ async function geocodeLocation(locationStr, title, info, rowData) {
                     const result = fallbackData[0];
                     const lat = parseFloat(result.lat);
                     const lng = parseFloat(result.lon);
+                    
+                    // Store coordinates in the row data for easier path creation
+                    if (rowData) {
+                        rowData._geocodedLat = lat;
+                        rowData._geocodedLng = lng;
+                    }
+                    
                     const displayName = result.name || result.display_name.split(',')[0] || locationStr;
                     
                     return createMarker(lat, lng, title, displayName, info, rowData);
@@ -589,6 +653,11 @@ function switchView(viewId) {
                             
                             const group = new L.featureGroup(markers);
                             map.fitBounds(group.getBounds().pad(padding));
+                            
+                            // Update travel path if toggle is checked
+                            if (showPath) {
+                                updateTravelPath();
+                            }
                         }
                     }
                 }, 100); // Small delay to ensure the view is fully rendered
@@ -640,6 +709,200 @@ function showError(message) {
     }, 5000);
 }
 
+// Update the travel path on the map
+function updateTravelPath() {
+    console.log("updateTravelPath called, showPath =", showPath);
+    
+    // Remove existing path layer if it exists
+    if (pathLayer) {
+        console.log("Removing existing path layer");
+        map.removeLayer(pathLayer);
+        pathLayer = null;
+    }
+    
+    // If path toggle is not checked, just return
+    if (!showPath) {
+        console.log("Path toggle is not checked, returning");
+        return;
+    }
+    
+    // Find date column for ordering
+    const dateColumn = headers.find(header => 
+        header.toLowerCase() === 'date' || 
+        header.toLowerCase().includes('date')) || '';
+    
+    // Find location column
+    const locationColumn = headers.find(header => 
+        header.toLowerCase().includes('location') || 
+        header.toLowerCase().includes('place') || 
+        header.toLowerCase().includes('address')) || '';
+    
+    // Find latitude and longitude columns
+    const latColumn = headers.find(header => 
+        header.toLowerCase().includes('lat') || 
+        header.toLowerCase().includes('latitude')) || '';
+    
+    const lngColumn = headers.find(header => 
+        header.toLowerCase().includes('lng') || 
+        header.toLowerCase().includes('lon') || 
+        header.toLowerCase().includes('longitude')) || '';
+    
+    // If we don't have date or location information, we can't draw a path
+    if (!dateColumn || (!locationColumn && (!latColumn || !lngColumn))) {
+        console.warn('Cannot draw travel path: missing date or location columns');
+        return;
+    }
+    
+    // Get all locations with coordinates and dates
+    const locationsWithCoords = [];
+    
+    // Collect all markers from the map
+    const markers = [];
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker) {
+            markers.push(layer);
+        }
+    });
+    
+    // Match markers with data rows
+    sheetData.forEach(row => {
+        // Skip rows without date
+        if (!row[dateColumn]) return;
+        
+        const date = new Date(row[dateColumn]);
+        if (isNaN(date.getTime())) return; // Skip invalid dates
+        
+        // Try to find coordinates
+        let lat = null;
+        let lng = null;
+        
+        // First try to get coordinates from lat/lng columns
+        if (latColumn && lngColumn && row[latColumn] && row[lngColumn]) {
+            lat = parseFloat(row[latColumn]);
+            lng = parseFloat(row[lngColumn]);
+        }
+        // Then try to use stored geocoded coordinates
+        else if (row._geocodedLat && row._geocodedLng) {
+            lat = row._geocodedLat;
+            lng = row._geocodedLng;
+        }
+        
+        // If we have coordinates, add to our list
+        if (!isNaN(lat) && !isNaN(lng)) {
+            locationsWithCoords.push({
+                date: date,
+                latlng: [lat, lng]
+            });
+        } 
+        // Otherwise, try to find a marker for this location
+        else if (locationColumn && row[locationColumn]) {
+            const location = row[locationColumn];
+            
+            // Find a marker that might match this location
+            // This is approximate since we don't have a direct link between markers and data rows
+            for (const marker of markers) {
+                const markerLatLng = marker.getLatLng();
+                
+                // Check if the marker's popup contains this location
+                // This is a heuristic and might not be 100% accurate
+                const popupContent = marker._popup ? marker._popup.getContent() : '';
+                if (popupContent && popupContent.includes(location)) {
+                    locationsWithCoords.push({
+                        date: date,
+                        latlng: [markerLatLng.lat, markerLatLng.lng]
+                    });
+                    break;
+                }
+            }
+        }
+    });
+    
+    // Sort locations by date
+    locationsWithCoords.sort((a, b) => a.date - b.date);
+    
+    console.log("Locations with coordinates:", locationsWithCoords);
+    
+    // If we have at least 2 locations, draw the path
+    if (locationsWithCoords.length >= 2) {
+        console.log("Drawing path between", locationsWithCoords.length, "locations");
+        
+        // Validate all locations have valid latlng arrays before proceeding
+        const validLocations = locationsWithCoords.filter(loc => 
+            loc && loc.latlng && Array.isArray(loc.latlng) && 
+            loc.latlng.length >= 2 && 
+            !isNaN(loc.latlng[0]) && !isNaN(loc.latlng[1])
+        );
+        
+        console.log("Valid locations for path:", validLocations.length);
+        
+        if (validLocations.length < 2) {
+            console.warn("Not enough valid locations to draw a path");
+            return;
+        }
+        
+        // Create a feature group for the path
+        pathLayer = L.featureGroup().addTo(map);
+        
+        // Draw lines between consecutive points
+        for (let i = 0; i < validLocations.length - 1; i++) {
+            const from = validLocations[i].latlng;
+            const to = validLocations[i + 1].latlng;
+            
+            // Double-check coordinates before creating the polyline
+            if (from && to) {
+                
+                // Create a polyline with dashed line
+                const line = L.polyline([from, to], {
+                    color: '#3498db',
+                    weight: 3,
+                    opacity: 0.7,
+                    dashArray: '5, 5'
+                }).addTo(pathLayer);
+                
+                console.log("Added line from", from, "to", to);
+                
+                // Add arrow indicator
+                const arrowHead = createArrowHead(from, to);
+                arrowHead.addTo(pathLayer);
+            } else {
+                console.error("Invalid coordinates for line:", from, to);
+            }
+        }
+    }
+}
+
+// Create an arrow head to show direction
+function createArrowHead(from, to) {
+    // Ensure from and to are valid arrays with at least 2 elements
+    if (!from || !to || !Array.isArray(from) || !Array.isArray(to) || from.length < 2 || to.length < 2) {
+        console.error("Invalid coordinates for arrow head:", from, to);
+        return L.marker([0, 0], { opacity: 0 }); // Return an invisible marker as fallback
+    }
+    
+    // Calculate the midpoint of the line
+    const midX = (from[1] + to[1]) / 2;
+    const midY = (from[0] + to[0]) / 2;
+    
+    // Calculate the angle of the line
+    const angle = Math.atan2(to[0] - from[0], to[1] - from[1]) * 180 / Math.PI;
+    
+    // Create a custom divIcon for the arrow
+    const arrowIcon = L.divIcon({
+        html: `<svg width="16" height="16" viewBox="0 0 16 16">
+                <polygon points="0,0 16,8 0,16" transform="rotate(${angle + 90} 8 8)" style="fill: #3498db; fill-opacity: 0.8;"/>
+               </svg>`,
+        className: '',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    
+    // Create a marker with the arrow icon at the midpoint
+    return L.marker([midY, midX], {
+        icon: arrowIcon,
+        interactive: false // Make it non-interactive so it doesn't interfere with clicks
+    });
+}
+
 // Show detailed popup with all information from a row
 function showDetailPopup(rowData) {
     // Remove any existing detail popups
@@ -678,19 +941,25 @@ function showDetailPopup(rowData) {
     
     // Add all fields from the row data
     Object.entries(rowData).forEach(([key, value]) => {
-        if (value && value.trim() !== '') {
-            const field = document.createElement('div');
-            field.className = 'detail-field';
+        // Skip internal properties (starting with underscore)
+        if (!key.startsWith('_') && value) {
+            // Convert value to string if it's not already
+            const stringValue = typeof value === 'string' ? value : String(value);
             
-            const label = document.createElement('strong');
-            label.textContent = key + ': ';
-            
-            const valueEl = document.createElement('span');
-            valueEl.textContent = value;
-            
-            field.appendChild(label);
-            field.appendChild(valueEl);
-            content.appendChild(field);
+            if (stringValue.trim() !== '') {
+                const field = document.createElement('div');
+                field.className = 'detail-field';
+                
+                const label = document.createElement('strong');
+                label.textContent = key + ': ';
+                
+                const valueEl = document.createElement('span');
+                valueEl.textContent = stringValue;
+                
+                field.appendChild(label);
+                field.appendChild(valueEl);
+                content.appendChild(field);
+            }
         }
     });
     

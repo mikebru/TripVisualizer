@@ -169,6 +169,35 @@ main {
 #map-view {
     height: calc(100vh - 130px); /* Adjust height based on viewport */
     min-height: 400px;
+    position: relative;
+}
+
+#map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background-color: white;
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-control {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-control input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.toggle-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2980b9;
 }
 
 #map {
@@ -176,6 +205,26 @@ main {
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     z-index: 1; /* Ensure proper stacking context */
+}
+
+/* Path line styles */
+.travel-path {
+    stroke: #3498db !important;
+    stroke-width: 3 !important;
+    stroke-opacity: 0.7 !important;
+    stroke-dasharray: 5, 5 !important;
+    animation: dash 20s linear infinite !important;
+}
+
+.travel-arrow {
+    fill: #3498db !important;
+    fill-opacity: 0.8 !important;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -1000;
+    }
 }
 
 /* Map Marker Popup Styles */
