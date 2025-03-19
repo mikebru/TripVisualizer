@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google API libraries -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <!-- Leaflet for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- FullCalendar for calendar view -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+</head>
+<body>
+    <header>
+        <h1>Trip Visualizer</h1>
+        <div class="sheet-input">
+            <input type="text" id="sheet-url" placeholder="Enter Google Sheet URL">
+            <button id="load-sheet">Load Data</button>
+        </div>
+    </header>
+
+    <nav>
+        <ul class="view-selector">
+            <li><button id="table-view-btn" class="active">Table View</button></li>
+            <li><button id="calendar-view-btn">Calendar View</button></li>
+            <li><button id="map-view-btn">Map View</button></li>
+        </ul>
+    </nav>
+
+    <main>
+        <div id="table-view" class="view active">
+            <table id="data-table">
+                <thead>
+                    <tr id="table-header"></tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+
+        <div id="calendar-view" class="view">
+            <div id="calendar"></div>
+        </div>
+
+        <div id="map-view" class="view">
+            <div id="map"></div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
