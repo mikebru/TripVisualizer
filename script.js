@@ -175,7 +175,7 @@ function initCalendarView() {
     // Create calendar events
     const events = [];
     
-    sheetData.forEach(row => {
+    sheetData.forEach((row, index) => {
         // Try to find start and end dates
         let startDate = null;
         let endDate = null;
@@ -200,15 +200,16 @@ function initCalendarView() {
             const event = {
                 title: row[nameColumn] || 'Untitled Event',
                 start: startDate.toISOString(),
+                // Store the row index and all data for the event
+                extendedProps: { 
+                    rowIndex: index,
+                    allData: row,
+                    location: row[locationColumn] || ''
+                }
             };
             
             if (endDate) {
                 event.end = endDate.toISOString();
-            }
-            
-            if (locationColumn && row[locationColumn]) {
-                event.location = row[locationColumn];
-                event.extendedProps = { location: row[locationColumn] };
             }
             
             events.push(event);
@@ -250,6 +251,9 @@ function initCalendarView() {
                 if (info.event.extendedProps.location) {
                     info.el.title = `Location: ${info.event.extendedProps.location}`;
                 }
+            },
+            eventClick: function(info) {
+                showDetailPopup(info.event.extendedProps.allData);
             }
         });
     }
@@ -296,22 +300,15 @@ function initMapView() {
     
     // Initialize map if not already created
     if (!map) {
-        map = L.map(mapEl).setView([0, 0], 2);
+        // Start with a more zoomed-in view (zoom level 4 instead of 2)
+        map = L.map(mapEl).setView([20, 0], 4);
         
-        // Use Stamen's terrain tiles which have English labels
-       // L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png', {
-       //     attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
-       //     subdomains: 'abcd',
-       //     minZoom: 0,
-       //     maxZoom: 18
-       // }).addTo(map);
-        
-        // Alternative: Use Carto's Voyager tiles which have English labels
-         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        // Use Carto's Voyager tiles which have English labels
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 19
-         }).addTo(map);
+        }).addTo(map);
     } else {
         // Clear existing markers
         map.eachLayer(layer => {
@@ -319,13 +316,20 @@ function initMapView() {
                 map.removeLayer(layer);
             }
         });
+        
+        // Reset view to ensure proper rendering
+        map.invalidateSize();
     }
     
-    // Add markers for locations
+    // Add markers for locations from the table data
     const markers = [];
     const geocodingPromises = [];
     
-    sheetData.forEach((row, index) => {
+    // Get visible rows from the table (if we want to filter based on table visibility in the future)
+    // For now, we'll use all sheetData
+    const visibleData = sheetData;
+    
+    visibleData.forEach((row, index) => {
         let lat = null;
         let lng = null;
         let title = row[nameColumn] || 'Untitled';
@@ -338,14 +342,14 @@ function initMapView() {
             lng = parseFloat(row[lngColumn]);
             
             if (!isNaN(lat) && !isNaN(lng)) {
-                const marker = createMarker(lat, lng, title, location, info);
+                const marker = createMarker(lat, lng, title, location, info, row);
                 markers.push(marker);
             }
         } 
         // If no coordinates but location exists, use geocoding
         else if (location) {
             // Create a promise for geocoding this location
-            const promise = geocodeLocation(location, title, info)
+            const promise = geocodeLocation(location, title, info, row)
                 .then(marker => {
                     if (marker) {
                         markers.push(marker);
@@ -364,21 +368,31 @@ function initMapView() {
         Promise.all(geocodingPromises).then(() => {
             fitMapToMarkers(markers);
         });
-    } else {
+    } else if (markers.length > 0) {
         // If we have markers from lat/lng, fit the map immediately
         fitMapToMarkers(markers);
     }
 }
 
 // Create a marker with popup and tooltip
-function createMarker(lat, lng, title, location, info) {
-    const popupContent = `
-        <div class="marker-popup">
-            <h3>${title}</h3>
-            ${location ? `<p><strong>Location:</strong> ${location}</p>` : ''}
-            ${info ? `<p>${info}</p>` : ''}
-        </div>
-    `;
+function createMarker(lat, lng, title, location, info, rowData) {
+    // Create popup content with all data from the row
+    let popupContent = `<div class="marker-popup"><h3>${title}</h3>`;
+    
+    // Add all fields from the row data
+    if (rowData) {
+        Object.entries(rowData).forEach(([key, value]) => {
+            if (value && value.trim() !== '') {
+                popupContent += `<p><strong>${key}:</strong> ${value}</p>`;
+            }
+        });
+    } else {
+        // Fallback to basic info if rowData not provided
+        if (location) popupContent += `<p><strong>Location:</strong> ${location}</p>`;
+        if (info) popupContent += `<p>${info}</p>`;
+    }
+    
+    popupContent += `</div>`;
     
     const marker = L.marker([lat, lng])
         .addTo(map)
@@ -389,28 +403,40 @@ function createMarker(lat, lng, title, location, info) {
             opacity: 0.9
         });
     
+    // No longer show the detailed popup overlay when clicking on a marker
+    
     return marker;
 }
 
 // Geocode a location string to coordinates
-async function geocodeLocation(locationStr, title, info) {
+async function geocodeLocation(locationStr, title, info, rowData) {
     try {
-        // For Tokyo International Airport, use hardcoded English name and coordinates
-        if (locationStr.includes('Tokyo') || locationStr.includes('Haneda') || locationStr.includes('HND')) {
-            console.log('Using hardcoded data for Tokyo International Airport');
-            return createMarker(
-                35.5494, // Latitude for Haneda Airport
-                139.7798, // Longitude for Haneda Airport
-                title,
-                'Tokyo International Airport (Haneda Airport)', // English name
-                info
-            );
+        // Improve geocoding by adding context for landmarks and specific locations
+        let searchQuery = locationStr;
+        
+        // If the location appears to be a landmark or specific place (like a museum),
+        // add geographic context to improve geocoding accuracy
+        if (!searchQuery.toLowerCase().includes('japan') && 
+            !searchQuery.toLowerCase().includes('tokyo') && 
+            (searchQuery.toLowerCase().includes('museum') || 
+             searchQuery.toLowerCase().includes('temple') || 
+             searchQuery.toLowerCase().includes('shrine') || 
+             searchQuery.toLowerCase().includes('park') || 
+             searchQuery.toLowerCase().includes('station'))) {
+            // Add "Tokyo, Japan" context for better geocoding results
+            searchQuery = `${searchQuery}, Tokyo, Japan`;
+            console.log(`Enhanced search query to: ${searchQuery}`);
         }
         
-        // For other locations, use Nominatim geocoding
-        const encodedLocation = encodeURIComponent(locationStr);
-        // Use language parameter for English results
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodedLocation}&limit=1&accept-language=en`);
+        // For other locations, use Nominatim geocoding with improved parameters
+        const encodedLocation = encodeURIComponent(searchQuery);
+        
+        // Use improved parameters:
+        // - language parameter for English results
+        // - countrycodes=jp to prioritize Japanese locations
+        // - limit=1 to get the most relevant result
+        // - addressdetails=1 to get detailed address information
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodedLocation}&limit=1&accept-language=en&countrycodes=jp&addressdetails=1`);
         
         if (!response.ok) {
             throw new Error(`Geocoding failed: ${response.statusText}`);
@@ -424,11 +450,35 @@ async function geocodeLocation(locationStr, title, info) {
             const lat = parseFloat(result.lat);
             const lng = parseFloat(result.lon);
             
-            // Extract English name from the display_name
-            // Split by commas and take the first part for a cleaner name
-            const displayName = result.display_name.split(',')[0] || locationStr;
+            // Extract a cleaner display name
+            let displayName = locationStr;
+            if (result.display_name) {
+                // Try to get a cleaner name by using the first part or the name field
+                displayName = result.name || result.display_name.split(',')[0] || locationStr;
+            }
             
-            return createMarker(lat, lng, title, displayName, info);
+            return createMarker(lat, lng, title, displayName, info, rowData);
+        }
+        
+        // If the first attempt failed, try a more general search
+        if (data.length === 0 && !searchQuery.includes('Japan')) {
+            console.log('First geocoding attempt failed, trying with more general context...');
+            const fallbackQuery = encodeURIComponent(`${locationStr}, Japan`);
+            const fallbackResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${fallbackQuery}&limit=1&accept-language=en`);
+            
+            if (fallbackResponse.ok) {
+                const fallbackData = await fallbackResponse.json();
+                console.log('Fallback geocoding response:', fallbackData);
+                
+                if (fallbackData && fallbackData.length > 0) {
+                    const result = fallbackData[0];
+                    const lat = parseFloat(result.lat);
+                    const lng = parseFloat(result.lon);
+                    const displayName = result.name || result.display_name.split(',')[0] || locationStr;
+                    
+                    return createMarker(lat, lng, title, displayName, info, rowData);
+                }
+            }
         }
         
         return null;
@@ -438,11 +488,20 @@ async function geocodeLocation(locationStr, title, info) {
     }
 }
 
-// Fit map to show all markers
+// Fit map to show all markers with improved zoom
 function fitMapToMarkers(markers) {
     if (markers.length > 0) {
         const group = new L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.1));
+        
+        // Use a smaller padding value (0.05 instead of 0.1) for tighter zoom
+        map.fitBounds(group.getBounds().pad(0.05));
+        
+        // If there's only one marker, set a higher zoom level
+        if (markers.length === 1) {
+            // Get the current zoom and increase it by 2 levels (closer)
+            const currentZoom = map.getZoom();
+            map.setZoom(Math.min(currentZoom + 2, 15));
+        }
     }
 }
 
@@ -479,6 +538,26 @@ function switchView(viewId) {
             // Refresh map if it exists
             if (map) {
                 map.invalidateSize();
+                
+                // If we have markers, make sure they're visible
+                // This ensures the map is properly zoomed when switching to map view
+                if (map._loaded) {
+                    setTimeout(() => {
+                        // Find all markers on the map
+                        const markers = [];
+                        map.eachLayer(layer => {
+                            if (layer instanceof L.Marker) {
+                                markers.push(layer);
+                            }
+                        });
+                        
+                        // Fit bounds if we have markers
+                        if (markers.length > 0) {
+                            const group = new L.featureGroup(markers);
+                            map.fitBounds(group.getBounds().pad(0.05));
+                        }
+                    }, 100); // Small delay to ensure the view is fully rendered
+                }
             }
             break;
     }
@@ -522,4 +601,75 @@ function showError(message) {
     setTimeout(() => {
         errorEl.remove();
     }, 5000);
+}
+
+// Show detailed popup with all information from a row
+function showDetailPopup(rowData) {
+    // Remove any existing detail popups
+    const existingPopups = document.querySelectorAll('.detail-popup-overlay');
+    existingPopups.forEach(el => el.remove());
+    
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'detail-popup-overlay';
+    
+    // Create popup container
+    const popup = document.createElement('div');
+    popup.className = 'detail-popup';
+    
+    // Create close button
+    const closeButton = document.createElement('button');
+    closeButton.className = 'detail-popup-close';
+    closeButton.innerHTML = '&times;';
+    closeButton.addEventListener('click', () => {
+        overlay.remove();
+    });
+    
+    // Create title
+    const title = document.createElement('h2');
+    const nameColumn = headers.find(header => header === 'Name') || 
+                      headers.find(header => 
+                          header.toLowerCase() === 'name' || 
+                          header.toLowerCase().includes('name') || 
+                          header.toLowerCase().includes('title')) || 
+                      headers[0];
+    title.textContent = rowData[nameColumn] || 'Details';
+    
+    // Create content
+    const content = document.createElement('div');
+    content.className = 'detail-popup-content';
+    
+    // Add all fields from the row data
+    Object.entries(rowData).forEach(([key, value]) => {
+        if (value && value.trim() !== '') {
+            const field = document.createElement('div');
+            field.className = 'detail-field';
+            
+            const label = document.createElement('strong');
+            label.textContent = key + ': ';
+            
+            const valueEl = document.createElement('span');
+            valueEl.textContent = value;
+            
+            field.appendChild(label);
+            field.appendChild(valueEl);
+            content.appendChild(field);
+        }
+    });
+    
+    // Assemble popup
+    popup.appendChild(closeButton);
+    popup.appendChild(title);
+    popup.appendChild(content);
+    overlay.appendChild(popup);
+    
+    // Add to document
+    document.body.appendChild(overlay);
+    
+    // Add event listener to close when clicking outside
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+        }
+    });
 }
