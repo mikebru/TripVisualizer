@@ -1023,40 +1023,6 @@ function updateTravelPath() {
         // Create a feature group for the path
         pathLayer = L.featureGroup().addTo(map);
         
-        // Add markers for each point in the path to ensure all points are visible
-        // This is especially important for points at the same location
-        validLocations.forEach((loc, index) => {
-            // Add a small, semi-transparent circle marker at each point
-            // This ensures all points are represented, even if they're at the same location
-            const pointMarker = L.circleMarker(loc.latlng, {
-                radius: 3,
-                fillColor: '#3498db',
-                color: '#2980b9',
-                weight: 1,
-                opacity: 0.7,
-                fillOpacity: 0.5,
-                interactive: false // Non-interactive to avoid interfering with clicks
-            }).addTo(pathLayer);
-            
-            // Add a label with the sequence number if available
-            if (loc.sequenceNumber) {
-                // Create a small label with the sequence number
-                const labelIcon = L.divIcon({
-                    className: 'path-point-label',
-                    html: `<div class="path-point-number">${loc.sequenceNumber}</div>`,
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8]
-                });
-                
-                // Add the label marker
-                L.marker(loc.latlng, {
-                    icon: labelIcon,
-                    interactive: false,
-                    zIndexOffset: 1000
-                }).addTo(pathLayer);
-            }
-        });
-        
         // Draw lines between consecutive points
         for (let i = 0; i < validLocations.length - 1; i++) {
             const from = validLocations[i].latlng;
