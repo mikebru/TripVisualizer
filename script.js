@@ -15,6 +15,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize load button
     document.getElementById('load-sheet').addEventListener('click', loadSheetData);
+    
+    // Initialize instructions toggle
+    const instructionsHeader = document.querySelector('.instructions-header');
+    const toggleButton = document.querySelector('.toggle-instructions');
+    const templateInstructions = document.querySelector('.template-instructions');
+    
+    if (instructionsHeader && templateInstructions) {
+        instructionsHeader.addEventListener('click', () => {
+            templateInstructions.classList.toggle('expanded');
+        });
+    }
+    
+    if (toggleButton) {
+        toggleButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent the header click event from firing
+            templateInstructions.classList.toggle('expanded');
+        });
+    }
 
     // Initialize path toggle
     const pathToggle = document.getElementById('show-path-toggle');

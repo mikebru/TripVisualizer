@@ -60,6 +60,87 @@ header h1 {
     background-color: #1c638e;
 }
 
+/* Template Instructions Styles */
+.template-instructions {
+    background-color: white;
+    margin: 0.5rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    cursor: pointer;
+}
+
+.template-instructions h2 {
+    color: #3498db;
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.toggle-instructions {
+    background: none;
+    border: none;
+    color: #3498db;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    transition: transform 0.3s;
+}
+
+.toggle-icon {
+    display: inline-block;
+    transition: transform 0.3s;
+}
+
+.instructions-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    padding: 0 1rem;
+}
+
+.template-instructions.expanded .instructions-content {
+    max-height: 500px; /* Adjust based on content */
+    padding: 0 1rem 1rem;
+}
+
+.template-instructions.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.template-instructions ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.template-instructions li {
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.template-instructions a {
+    color: #2980b9;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.template-instructions a:hover {
+    text-decoration: underline;
+}
+
+.template-instructions .note {
+    background-color: #f8f9fa;
+    padding: 0.75rem;
+    border-left: 4px solid #3498db;
+    font-size: 0.9rem;
+    color: #555;
+}
+
 nav {
     background-color: #2980b9;
     padding: 0.5rem;
@@ -434,6 +515,30 @@ main {
         width: 100%;
     }
     
+    .template-instructions {
+        padding: 0;
+    }
+    
+    .instructions-header {
+        padding: 0.75rem;
+    }
+    
+    .template-instructions h2 {
+        font-size: 1.2rem;
+    }
+    
+    .template-instructions.expanded .instructions-content {
+        padding: 0 0.75rem 0.75rem;
+    }
+    
+    .template-instructions ol {
+        padding-left: 1.25rem;
+    }
+    
+    .template-instructions li {
+        font-size: 0.95rem;
+    }
+    
     .view-selector {
         justify-content: space-between;
     }
@@ -462,6 +567,42 @@ main {
     header h1 {
         font-size: 1.3rem;
         margin-bottom: 0.75rem;
+    }
+    
+    .template-instructions {
+        padding: 0;
+        margin: 0.25rem;
+    }
+    
+    .instructions-header {
+        padding: 0.5rem;
+    }
+    
+    .template-instructions h2 {
+        font-size: 1.1rem;
+    }
+    
+    .toggle-instructions {
+        font-size: 1rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .template-instructions.expanded .instructions-content {
+        padding: 0 0.5rem 0.5rem;
+    }
+    
+    .template-instructions ol {
+        padding-left: 1rem;
+    }
+    
+    .template-instructions li {
+        font-size: 0.9rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .template-instructions .note {
+        padding: 0.5rem;
+        font-size: 0.8rem;
     }
     
     main {
