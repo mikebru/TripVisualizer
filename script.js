@@ -21,7 +21,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pathToggle) {
         pathToggle.addEventListener('change', function() {
             showPath = this.checked;
-            updateTravelPath();
+            
+            // Simulate a refresh similar to hitting the "Load Data" button
+            // This ensures all markers and paths are properly redrawn
+            if (showPath) {
+                // Clear and redraw the map view
+                initMapView();
+            } else {
+                // Just update the travel path (remove it)
+                updateTravelPath();
+            }
         });
     }
 
@@ -405,7 +414,8 @@ function initMapView() {
     
     // Wait for all geocoding to complete, then fit bounds and draw path if needed
     if (geocodingPromises.length > 0) {
-        Promise.all(geocodingPromises).then(() => {
+        // Use Promise.allSettled instead of Promise.all to handle both fulfilled and rejected promises
+        Promise.allSettled(geocodingPromises).then(() => {
             console.log("All geocoding completed, markers:", markers.length);
             
             // Store marker coordinates in the original data for easier path creation
@@ -428,7 +438,10 @@ function initMapView() {
             fitMapToMarkers(markers);
             // Draw travel path if toggle is checked
             if (showPath) {
-                updateTravelPath();
+                // Use a small timeout to ensure all DOM updates are complete
+                setTimeout(() => {
+                    updateTravelPath();
+                }, 100);
             }
         });
     } else if (markers.length > 0) {
@@ -436,7 +449,10 @@ function initMapView() {
         fitMapToMarkers(markers);
         // Draw travel path if toggle is checked
         if (showPath) {
-            updateTravelPath();
+            // Use a small timeout to ensure all DOM updates are complete
+            setTimeout(() => {
+                updateTravelPath();
+            }, 100);
         }
     }
 }
@@ -915,6 +931,24 @@ function updateTravelPath() {
         }
     });
     
+    console.log(`Found ${markers.length} markers for path drawing`);
+    
+    // First, create a map of sequence numbers to markers for more reliable matching
+    const markersBySequence = {};
+    markers.forEach(marker => {
+        // Try to extract the sequence number from the marker's icon
+        if (marker.options.icon && marker.options.icon.options.html) {
+            const html = marker.options.icon.options.html;
+            const match = html.match(/<div class="marker-number">(\d+)<\/div>/);
+            if (match && match[1]) {
+                const sequenceNumber = parseInt(match[1]);
+                if (!isNaN(sequenceNumber)) {
+                    markersBySequence[sequenceNumber] = marker;
+                }
+            }
+        }
+    });
+    
     // Match markers with data rows
     sheetData.forEach(row => {
         // Skip rows without date
@@ -937,14 +971,13 @@ function updateTravelPath() {
             lat = row._geocodedLat;
             lng = row._geocodedLng;
         }
-        
-        // If we have coordinates, add to our list
-        if (!isNaN(lat) && !isNaN(lng)) {
-            locationsWithCoords.push({
-                date: date,
-                latlng: [lat, lng]
-            });
-        } 
+        // Try to find by sequence number
+        else if (row._sequenceNumber && markersBySequence[row._sequenceNumber]) {
+            const marker = markersBySequence[row._sequenceNumber];
+            const markerLatLng = marker.getLatLng();
+            lat = markerLatLng.lat;
+            lng = markerLatLng.lng;
+        }
         // Otherwise, try to find a marker for this location
         else if (locationColumn && row[locationColumn]) {
             const location = row[locationColumn];
@@ -958,18 +991,29 @@ function updateTravelPath() {
                 // This is a heuristic and might not be 100% accurate
                 const popupContent = marker._popup ? marker._popup.getContent() : '';
                 if (popupContent && popupContent.includes(location)) {
-                    locationsWithCoords.push({
-                        date: date,
-                        latlng: [markerLatLng.lat, markerLatLng.lng]
-                    });
+                    lat = markerLatLng.lat;
+                    lng = markerLatLng.lng;
                     break;
                 }
             }
         }
+        
+        // If we have coordinates, add to our list
+        if (!isNaN(lat) && !isNaN(lng)) {
+            locationsWithCoords.push({
+                date: date,
+                latlng: [lat, lng],
+                sequenceNumber: row._sequenceNumber || 0
+            });
+        }
     });
     
-    // Sort locations by date
-    locationsWithCoords.sort((a, b) => a.date - b.date);
+    // Sort locations by date and then by sequence number as a backup
+    locationsWithCoords.sort((a, b) => {
+        const dateCompare = a.date - b.date;
+        if (dateCompare !== 0) return dateCompare;
+        return a.sequenceNumber - b.sequenceNumber;
+    });
     
     console.log("Locations with coordinates:", locationsWithCoords);
     
@@ -994,6 +1038,40 @@ function updateTravelPath() {
         // Create a feature group for the path
         pathLayer = L.featureGroup().addTo(map);
         
+        // Add markers for each point in the path to ensure all points are visible
+        // This is especially important for points at the same location
+        validLocations.forEach((loc, index) => {
+            // Add a small, semi-transparent circle marker at each point
+            // This ensures all points are represented, even if they're at the same location
+            const pointMarker = L.circleMarker(loc.latlng, {
+                radius: 3,
+                fillColor: '#3498db',
+                color: '#2980b9',
+                weight: 1,
+                opacity: 0.7,
+                fillOpacity: 0.5,
+                interactive: false // Non-interactive to avoid interfering with clicks
+            }).addTo(pathLayer);
+            
+            // Add a label with the sequence number if available
+            if (loc.sequenceNumber) {
+                // Create a small label with the sequence number
+                const labelIcon = L.divIcon({
+                    className: 'path-point-label',
+                    html: `<div class="path-point-number">${loc.sequenceNumber}</div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+                
+                // Add the label marker
+                L.marker(loc.latlng, {
+                    icon: labelIcon,
+                    interactive: false,
+                    zIndexOffset: 1000
+                }).addTo(pathLayer);
+            }
+        });
+        
         // Draw lines between consecutive points
         for (let i = 0; i < validLocations.length - 1; i++) {
             const from = validLocations[i].latlng;
@@ -1001,20 +1079,26 @@ function updateTravelPath() {
             
             // Double-check coordinates before creating the polyline
             if (from && to) {
+                // Check if points are at the same location
+                const sameLocation = from[0] === to[0] && from[1] === to[1];
                 
-                // Create a polyline with dashed line
-                const line = L.polyline([from, to], {
-                    color: '#3498db',
-                    weight: 3,
-                    opacity: 0.7,
-                    dashArray: '5, 5'
-                }).addTo(pathLayer);
-                
-                console.log("Added line from", from, "to", to);
-                
-                // Add arrow indicator
-                const arrowHead = createArrowHead(from, to);
-                arrowHead.addTo(pathLayer);
+                if (!sameLocation) {
+                    // Create a polyline with dashed line
+                    const line = L.polyline([from, to], {
+                        color: '#3498db',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '5, 5'
+                    }).addTo(pathLayer);
+                    
+                    console.log("Added line from", from, "to", to);
+                    
+                    // Add arrow indicator
+                    const arrowHead = createArrowHead(from, to);
+                    arrowHead.addTo(pathLayer);
+                } else {
+                    console.log(`Points ${i+1} and ${i+2} are at the same location:`, from);
+                }
             } else {
                 console.error("Invalid coordinates for line:", from, to);
             }
