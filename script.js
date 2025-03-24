@@ -715,28 +715,22 @@ async function geocodeLocation(locationStr, title, info, rowData) {
     }
 }
 
-// Fit map to show all markers with improved zoom for mobile
+// Fit map to show all markers with consistent zoom across all devices
 function fitMapToMarkers(markers) {
     if (markers.length > 0) {
         const group = new L.featureGroup(markers);
         
-        // Check if we're on a mobile device (rough estimate based on screen width)
-        const isMobile = window.innerWidth < 768;
+        // Use consistent padding for all devices
+        const padding = 0.05;
         
-        // Use appropriate padding based on device
-        const padding = isMobile ? 0.02 : 0.05;
-        
-        // Fit bounds with appropriate padding
+        // Fit bounds with padding
         map.fitBounds(group.getBounds().pad(padding));
         
         // If there's only one marker, set a higher zoom level
         if (markers.length === 1) {
             // Get the current zoom and increase it
-            // Use a higher zoom level on mobile for better visibility
             const currentZoom = map.getZoom();
-            const zoomIncrease = isMobile ? 3 : 2;
-            const maxZoom = isMobile ? 16 : 15;
-            map.setZoom(Math.min(currentZoom + zoomIncrease, maxZoom));
+            map.setZoom(Math.min(currentZoom + 2, 15));
         }
     }
 }
@@ -776,12 +770,11 @@ function switchView(viewId) {
             buttonId = 'map-view-btn';
             // Refresh map if it exists
             if (map) {
-                // Use a longer timeout for mobile devices to ensure proper rendering
-                const isMobile = window.innerWidth < 768;
-                const timeoutDelay = isMobile ? 300 : 100; // Longer delay on mobile
+                // Use a consistent timeout for all devices
+                const timeoutDelay = 150;
                 
                 setTimeout(() => {
-                    // This is crucial for mobile - invalidateSize forces the map to recalculate dimensions
+                    // InvalidateSize forces the map to recalculate dimensions
                     map.invalidateSize(true);
                     
                     // If we have markers, make sure they're visible
@@ -799,19 +792,11 @@ function switchView(viewId) {
                         
                         // Fit bounds if we have markers
                         if (markers.length > 0) {
-                            // Check if we're on a mobile device
-                            const padding = isMobile ? 0.02 : 0.05;
+                            // Use consistent padding
+                            const padding = 0.05;
                             
                             const group = new L.featureGroup(markers);
                             map.fitBounds(group.getBounds().pad(padding));
-                            
-                            // On mobile, zoom out slightly to ensure all markers are visible
-                            if (isMobile && markers.length > 1) {
-                                setTimeout(() => {
-                                    const currentZoom = map.getZoom();
-                                    map.setZoom(currentZoom - 0.5);
-                                }, 100);
-                            }
                             
                             // Update travel path if toggle is checked
                             if (showPath) {
