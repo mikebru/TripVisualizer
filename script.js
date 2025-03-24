@@ -585,22 +585,13 @@ async function geocodeLocation(locationStr, title, info, rowData) {
         // Nominatim has a usage policy of max 1 request per second
         await delay(1100); // Slightly over 1 second to be safe
         
-        // Use a CORS proxy to avoid CORS issues
-        // We'll use a public CORS proxy service
-        const corsProxy = 'https://corsproxy.io/?';
-        
         // Use improved parameters:
         // - language parameter for English results
         // - countrycodes=jp to prioritize Japanese locations
         // - limit=1 to get the most relevant result
         // - addressdetails=1 to get detailed address information
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedLocation}&limit=1&accept-language=en&countrycodes=jp&addressdetails=1`;
-        const response = await fetch(corsProxy + encodeURIComponent(nominatimUrl), {
-            headers: {
-                // Add a user agent as requested by Nominatim usage policy
-                'User-Agent': 'TripVisualizer/1.0'
-            }
-        });
+        const response = await fetch(nominatimUrl);
         
         if (!response.ok) {
             // Handle rate limiting specifically
@@ -656,11 +647,7 @@ async function geocodeLocation(locationStr, title, info, rowData) {
             
             const fallbackQuery = encodeURIComponent(`${locationStr}, Japan`);
             const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${fallbackQuery}&limit=1&accept-language=en`;
-            const fallbackResponse = await fetch(corsProxy + encodeURIComponent(fallbackUrl), {
-                headers: {
-                    'User-Agent': 'TripVisualizer/1.0'
-                }
-            });
+            const fallbackResponse = await fetch(fallbackUrl);
             
             if (fallbackResponse.ok) {
                 const fallbackData = await fallbackResponse.json();
