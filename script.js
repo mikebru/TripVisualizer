@@ -590,7 +590,12 @@ async function geocodeLocation(locationStr, title, info, rowData) {
         // - countrycodes=jp to prioritize Japanese locations
         // - limit=1 to get the most relevant result
         // - addressdetails=1 to get detailed address information
-        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedLocation}&limit=1&accept-language=en&countrycodes=jp&addressdetails=1`;
+        
+        // Use a CORS proxy to avoid the "refused to connect" error
+        const corsProxy = 'https://corsproxy.io/?';
+        const nominatimUrl = `${corsProxy}https://nominatim.openstreetmap.org/search?format=json&q=${encodedLocation}&limit=1&accept-language=en&countrycodes=jp&addressdetails=1`;
+        
+        console.log('Geocoding request URL:', nominatimUrl);
         const response = await fetch(nominatimUrl);
         
         if (!response.ok) {
@@ -646,7 +651,11 @@ async function geocodeLocation(locationStr, title, info, rowData) {
             await delay(1100);
             
             const fallbackQuery = encodeURIComponent(`${locationStr}, Japan`);
-            const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${fallbackQuery}&limit=1&accept-language=en`;
+            // Use the CORS proxy for the fallback request as well
+            const corsProxy = 'https://corsproxy.io/?';
+            const fallbackUrl = `${corsProxy}https://nominatim.openstreetmap.org/search?format=json&q=${fallbackQuery}&limit=1&accept-language=en`;
+            
+            console.log('Fallback geocoding request URL:', fallbackUrl);
             const fallbackResponse = await fetch(fallbackUrl);
             
             if (fallbackResponse.ok) {
